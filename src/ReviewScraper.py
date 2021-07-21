@@ -9,10 +9,11 @@ class ReviewScraper:
     Scrape reviews from amazon given a product keyword
     Using requests & lxml libraries
     """
-    def __init__(self, productKeyword, n=-1):
+    def __init__(self, productKeyword, n=-1, reviewN=-1):
         """
         :param productKeyword:  The product to search and scrape reviews from
-        :param n:               The number of reviews to scrape. -1 for all
+        :param n:               The number of products to scrape for reviews. -1 for all
+        :param reviewN:         The number of pages of reviews to scrape from each product. -1 for all
         """
         self.__productKeyword = productKeyword
         self.__products = {}  # format as:
@@ -56,7 +57,7 @@ class ReviewScraper:
             self.__getProducts(nForPage, page+1)
 
         for product in self.__products.keys():
-            self.__getReviews(product)
+            self.__getReviews(product, reviewN)
 
 
     """
@@ -156,10 +157,11 @@ class ReviewScraper:
 
                 print("Found Product: " + productId)
 
-    def __getReviews(self, product):
+    def __getReviews(self, product, n):
         """
         Get the reviews for a specified product
         :param product:  the product's ID (ASIN number)
+        :param n:        the number of pages of reviews to scrape
         """
         reviewsTree = self.__openProductReviews(self.__products[product]["url"], product)
 
@@ -181,17 +183,20 @@ class ReviewScraper:
 
         # get the rest of the reviews for this product
         for page in range(1, totalPages):
-            reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
-            reviews = reviewsTree.xpath('.//a[@class="a-section review aok-relative"]')
-            for review in reviews:
-                self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+            if n != -1 and page > n:
+                return
+            else:
+                reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
+                reviews = reviewsTree.xpath('.//a[@class="a-section review aok-relative"]')
+                for review in reviews:
+                    self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
 
 
     def __extractReviewInfo(self, reviewDiv):
         """
         Extract review information from a provided review div
         :param reviewDiv:  an HTML div containing the review
-        :return:           an AmazonReview object with the extracted data
+        :return:           a dict with the extracted data
         """
         user = reviewDiv.xpath('.//span[@class="a-profile-name"]')[0].text
         rating = float(re.sub(" out of .*", "", reviewDiv.xpath('.//i[@data-hook="review-star-rating"]')[0].xpath('.//span[@class="a-icon-alt"]')[0].text))
@@ -203,13 +208,4 @@ class ReviewScraper:
         print("REVIEW: " + str(text))
         print()
 
-        return AmazonReview(user, rating, text)
-
-
-
-class AmazonReview:
-    # just a way to easily store review data
-    def __init__(self, user, rating, txt):
-        self.user = user
-        self.rating = rating
-        self.txt = txt
+        return {"user": user, "rating": rating, "text": text}
