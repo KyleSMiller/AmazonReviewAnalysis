@@ -63,9 +63,8 @@ class ReviewScraper:
     Public Methods
     """
 
-
-
-
+    def getProducts(self):
+        return self.__products
 
 
     """
@@ -214,6 +213,3 @@ class AmazonReview:
         self.user = user
         self.rating = rating
         self.txt = txt
-
-
-test = ReviewScraper("phosphatidylserine", 100)
