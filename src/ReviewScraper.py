@@ -130,17 +130,28 @@ class ReviewScraper:
                 productId = re.findall("B0[A-Z|0-9]{8}", productUrl)[0]
                 productName = products[i].xpath('.//span[@class="a-size-base-plus a-color-base a-text-normal"]')[0].text
                 productPrice = float(products[i].xpath('.//span[@class="a-price"]')[0].xpath('.//span[@class="a-offscreen"]')[0].text[1:])
-                count = products[i].xpath('.//span[@class="a-color-information a-text-bold"]')[0].text.strip()
-                count = int(re.sub("Count .*", "", count))
-                pricePer = float(re.findall("[0-9]+.?[0-9]+", products[i].xpath('.//span[@class="a-size-base a-color-secondary"]')[0].text)[0])
+
+                try:
+                    count = products[i].xpath('.//span[@class="a-color-information a-text-bold"]')[0].text.strip()
+                    count = int(re.sub("Count .*", "", count))
+                except:  # not all products have count listed
+                    count = None
+
+                try:
+                    pricePer = float(re.findall("[0-9]+.?[0-9]+", products[i].xpath('.//span[@class="a-size-base a-color-secondary"]')[0].text)[0])
+                except:
+                    if count != None:
+                        pricePer = productPrice / count
+                    else:
+                        pricePer = None
 
                 self.__products[productId] = {
                     "url": productUrl,
                     "name": productName,
                     "rating": None,  # get product rating later, as the xPaths needed for it here are very, very messy
                     "price": productPrice,
-                    "count": count,
-                    "pricePer": pricePer,
+                    "count": count,  # may be None
+                    "pricePer": pricePer,  # may be None
                     "reviews": []
                 }
 
@@ -205,4 +216,4 @@ class AmazonReview:
         self.txt = txt
 
 
-test = ReviewScraper("phosphatidylserine", 10)
+test = ReviewScraper("phosphatidylserine", 100)
