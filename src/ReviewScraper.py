@@ -38,6 +38,9 @@ class ReviewScraper:
         self.__BAD_HEADERS = {'user-agent':
                            'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'
                        }
+
+        self.__session = requests.Session()
+
         # Amazon will catch and block web-scrapers if you use the same headers twice in a row
         # So, use this other set of headers (BAD_HEADERS) to break up the pattern
         # This first set of headers will get rejected by Amazon, but that's okay
@@ -51,6 +54,9 @@ class ReviewScraper:
             nForPage = (PRODUCTS_PER_PAGE if (n - (PRODUCTS_PER_PAGE * (page+1))) >= 0 else
                         PRODUCTS_PER_PAGE + (n - (PRODUCTS_PER_PAGE * (page+1))))
             self.__getProducts(nForPage, page+1)
+
+        for product in self.__products.keys():
+            self.__getReviews(product)
 
 
     """
@@ -72,10 +78,10 @@ class ReviewScraper:
         :param page:  the page number to open
         :return:      the lxml etree of the page
         """
-        requests.get("https://www.amazon.com/s?k=" + self.__productKeyword, headers=self.__BAD_HEADERS)  # dummy request
+        self.__session.get("https://www.amazon.com/s?k=" + self.__productKeyword, headers=self.__BAD_HEADERS)  # dummy request
         print("Opening " + self.__productKeyword + " page " + str(page) + "...")
-        sleep(10)
-        productListPage = requests.get("https://www.amazon.com/s?k=" + self.__productKeyword + "&page=" + str(page), headers=self.__HEADERS)
+        sleep(12 + (random.random() * 2))
+        productListPage = self.__session.get("https://www.amazon.com/s?k=" + self.__productKeyword + "&page=" + str(page), headers=self.__HEADERS)
         productListTree = etree.ElementTree(html.fromstring(productListPage.content))
 
         title = productListTree.xpath('//title')[0].text
@@ -84,13 +90,22 @@ class ReviewScraper:
 
         return productListTree
 
-    def __openProductReviews(self, url):
-        requests.get("https://www.amazon.com", headers=self.__BAD_HEADERS)
-        print("Opening ")
-        sleep(10)
-        productReviewPage = requests.get("https://www.amazon.com/" + url + "")
+    def __openProductReviews(self, url, id, page=1):
+        """
+        Open the review page of a given product
+        :param url:  the url of the product
+        :return:     the lxml etree of the page
+        """
+        basicUrl = re.sub("dp/" + id + ".*", "", url)  # truncate the unneeded parts of the URL
 
-
+        self.__session.get("https://www.amazon.com/" + basicUrl + "product-reviews/" +
+                     id + "/reviewerType=all_reviews&pageNumber=" + str(page), headers=self.__BAD_HEADERS)
+        print("Opening ASIN: " + str(id) + " reviews page " + str(page) + "...")
+        sleep(12 + (random.random() * 2))
+        productReviewPage = self.__session.get("https://www.amazon.com/" + basicUrl + "product-reviews/" +
+                                         id + "/reviewerType=all_reviews&pageNumber=" + str(page), headers=self.__HEADERS)
+        productReviewTree = etree.ElementTree(html.fromstring(productReviewPage.content))
+        return productReviewTree
 
     def __getProducts(self, n, page):
         """
@@ -111,26 +126,42 @@ class ReviewScraper:
         for i in range(n):
             productHref = products[i].xpath('.//a[@class="a-link-normal s-no-outline"]')
             productUrl = str(productHref[0].get("href"))
-            productId = re.findall("B0[A-Z|0-9]{8}", productUrl)
-            self.__products[productId] = {
-                "url": productUrl,
-                "name": None,
-                "rating": None,
-                "price": None,
-                "count": None,
-                "pricePer": None,
-                "reviews": []
-            }
-            # TODO: currently, some odd IDs are getting captured. They redirect you to other IDs.
-            # TODO: I think the [@class="a-link-normal s-no-outline"] isn't a perfect system.
-            # TODO: Figure out a fix for it, or ignore it if it's only a very small number of ID's
-            # TODO: I think it's linked to the Amazon recommended products thing
-            # print("HREF: " + str(productHref[0].get("href")))
-            # print("ID: " + productId)
+            if len(re.findall("slredirect/", productUrl)) == 0:  # skip special URLs (amazon features, etc.)
+                productId = re.findall("B0[A-Z|0-9]{8}", productUrl)[0]
+                self.__products[productId] = {
+                    "url": productUrl,
+                    "name": None,
+                    "rating": None,
+                    "price": None,
+                    "count": None,
+                    "pricePer": None,
+                    "reviews": []
+                }
+
+    def __getReviews(self, product):
+        """
+        Get the reviews for a specified product
+        :param product:  the product's ID (ASIN number)
+        """
+        reviewsTree = self.__openProductReviews(self.__products[product]["url"], product)
+
+        # Data formatted as:  " 3,334 global ratings | 1,110 global reviews "
+        # Get the number of global reviews
+        reviewsCount = reviewsTree.xpath('/html/body/div[1]/div[3]/div/div[1]/div/div[1]/div[4]/div/span')[0].text.strip()
+        totalReviews = int("".join(re.findall("[0-9]+", re.sub(".*\| ", "", reviewsCount))))
+        print("TOTAL REVIEWS: " + str(totalReviews))
+        REVIEWS_PER_PAGE = 10
+        totalPages = totalReviews // REVIEWS_PER_PAGE
+        print("TOTAL PAGES: " + str(totalPages))
+
+
 
 
 
 test = ReviewScraper("phosphatidylserine", 10)
+
+
+
 
 class AmazonReview:
     # just a way to easily store review data
