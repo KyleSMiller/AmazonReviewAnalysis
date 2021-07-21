@@ -25,7 +25,7 @@ class ReviewScraper:
                 "price": price,
                 "count": count
                 "pricePer": price per pill
-                "reviews": ["review 1", "review 2", ...]
+                "reviews": [AmazonReview, AmazonReview, ...]
                 }
             }
         """
@@ -100,7 +100,7 @@ class ReviewScraper:
 
         self.__session.get("https://www.amazon.com/" + basicUrl + "product-reviews/" +
                      id + "/reviewerType=all_reviews&pageNumber=" + str(page), headers=self.__BAD_HEADERS)
-        print("Opening ASIN: " + str(id) + " reviews page " + str(page) + "...")
+        print("Opening ASIN " + str(id) + " reviews: page " + str(page) + "...")
         sleep(12 + (random.random() * 2))
         productReviewPage = self.__session.get("https://www.amazon.com/" + basicUrl + "product-reviews/" +
                                          id + "/reviewerType=all_reviews&pageNumber=" + str(page), headers=self.__HEADERS)
@@ -128,15 +128,23 @@ class ReviewScraper:
             productUrl = str(productHref[0].get("href"))
             if len(re.findall("slredirect/", productUrl)) == 0:  # skip special URLs (amazon features, etc.)
                 productId = re.findall("B0[A-Z|0-9]{8}", productUrl)[0]
+                productName = products[i].xpath('.//span[@class="a-size-base-plus a-color-base a-text-normal"]')[0].text
+                productPrice = float(products[i].xpath('.//span[@class="a-price"]')[0].xpath('.//span[@class="a-offscreen"]')[0].text[1:])
+                count = products[i].xpath('.//span[@class="a-color-information a-text-bold"]')[0].text.strip()
+                count = int(re.sub("Count .*", "", count))
+                pricePer = float(re.findall("[0-9]+.?[0-9]+", products[i].xpath('.//span[@class="a-size-base a-color-secondary"]')[0].text)[0])
+
                 self.__products[productId] = {
                     "url": productUrl,
-                    "name": None,
-                    "rating": None,
-                    "price": None,
-                    "count": None,
-                    "pricePer": None,
+                    "name": productName,
+                    "rating": None,  # get product rating later, as the xPaths needed for it here are very, very messy
+                    "price": productPrice,
+                    "count": count,
+                    "pricePer": pricePer,
                     "reviews": []
                 }
+
+                print("Found Product: " + productId)
 
     def __getReviews(self, product):
         """
@@ -149,24 +157,52 @@ class ReviewScraper:
         # Get the number of global reviews
         reviewsCount = reviewsTree.xpath('/html/body/div[1]/div[3]/div/div[1]/div/div[1]/div[4]/div/span')[0].text.strip()
         totalReviews = int("".join(re.findall("[0-9]+", re.sub(".*\| ", "", reviewsCount))))
-        print("TOTAL REVIEWS: " + str(totalReviews))
         REVIEWS_PER_PAGE = 10
         totalPages = totalReviews // REVIEWS_PER_PAGE
-        print("TOTAL PAGES: " + str(totalPages))
+
+        # get the ratings of the product
+        scoreRaw = reviewsTree.xpath('/html/body/div[1]/div[2]/div[1]/div/div[1]/div[1]/div/div[1]/div[2]/div/div/div[2]/div/span')[0].text.strip()
+        self.__products[product]["rating"] = re.findall("[0-9]+.?[0-9]? ", scoreRaw)[0]
+
+        # get page 1 of reviews
+        reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
+        for review in reviews:
+            self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+
+        # get the rest of the reviews for this product
+        for page in range(1, totalPages):
+            reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
+            reviews = reviewsTree.xpath('.//a[@class="a-section review aok-relative"]')
+            for review in reviews:
+                self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
 
 
+    def __extractReviewInfo(self, reviewDiv):
+        """
+        Extract review information from a provided review div
+        :param reviewDiv:  an HTML div containing the review
+        :return:           an AmazonReview object with the extracted data
+        """
+        user = reviewDiv.xpath('.//span[@class="a-profile-name"]')[0].text
+        rating = float(re.sub(" out of .*", "", reviewDiv.xpath('.//i[@data-hook="review-star-rating"]')[0].xpath('.//span[@class="a-icon-alt"]')[0].text))
+        text = reviewDiv.xpath('.//span[@class="a-size-base review-text review-text-content"]/span')[0].text.strip()
 
+        print("---------")
+        print("USER: " + str(user))
+        print("RATING: " + str(rating))
+        print("REVIEW: " + str(text))
+        print()
 
-
-test = ReviewScraper("phosphatidylserine", 10)
-
+        return AmazonReview(user, rating, text)
 
 
 
 class AmazonReview:
     # just a way to easily store review data
-    def __init__(self, user, productID, rating, txt):
+    def __init__(self, user, rating, txt):
         self.user = user
-        self.productID = productID
         self.rating = rating
         self.txt = txt
+
+
+test = ReviewScraper("phosphatidylserine", 10)
