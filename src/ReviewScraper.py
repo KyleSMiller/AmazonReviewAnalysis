@@ -103,8 +103,10 @@ class ReviewScraper:
         print("Opening ASIN " + str(id) + " reviews: page " + str(page) + "...")
         sleep(12 + (random.random() * 2))
         productReviewPage = self.__session.get("https://www.amazon.com/" + basicUrl + "product-reviews/" +
-                                         id + "/reviewerType=all_reviews&pageNumber=" + str(page), headers=self.__HEADERS)
+                                         id + "/reviewerType=all_reviews/ref=cm_cr_getr_d_paging_btm_next_" +
+                                               str(page) + "?pageNumber=" + str(page), headers=self.__HEADERS)
         productReviewTree = etree.ElementTree(html.fromstring(productReviewPage.content))
+        print(productReviewPage.url)
         return productReviewTree
 
     def __getProducts(self, n, page):
