@@ -18,15 +18,15 @@ class ReviewScraper:
         self.__productKeyword = productKeyword
         self.__products = {}  # format as:
         """
-            {"<product_id>": 
+            {"product_id": 
                 {
-                "url": "url",
-                "name": "productName",
-                "rating": rating,
-                "price": price,
-                "count": count
-                "pricePer": price per pill
-                "reviews": [AmazonReview, AmazonReview, ...]
+                "url": str,
+                "name": str,
+                "rating": float,
+                "price": float,
+                "count": int
+                "pricePer": float
+                "reviews": [{"user": str, "rating": float, "text": str}, {"user": str, "rating": float, "text": str}, ...]
                 }
             }
         """
