@@ -129,7 +129,10 @@ class ReviewScraper:
             if len(re.findall("slredirect/", productUrl)) == 0:  # skip special URLs (amazon features, etc.)
                 productId = re.findall("B0[A-Z|0-9]{8}", productUrl)[0]
                 productName = products[i].xpath('.//span[@class="a-size-base-plus a-color-base a-text-normal"]')[0].text
-                productPrice = float(products[i].xpath('.//span[@class="a-price"]')[0].xpath('.//span[@class="a-offscreen"]')[0].text[1:])
+                try:
+                    productPrice = float(products[i].xpath('.//span[@class="a-price"]')[0].xpath('.//span[@class="a-offscreen"]')[0].text[1:])
+                except:
+                    continue  # ignore products that do not list their price
 
                 try:
                     count = products[i].xpath('.//span[@class="a-color-information a-text-bold"]')[0].text.strip()
@@ -187,7 +190,7 @@ class ReviewScraper:
                 return
             else:
                 reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
-                reviews = reviewsTree.xpath('.//a[@class="a-section review aok-relative"]')
+                reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
                 for review in reviews:
                     self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
 
