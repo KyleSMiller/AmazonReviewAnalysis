@@ -130,7 +130,11 @@ class ReviewScraper:
             productUrl = str(productHref[0].get("href"))
             if len(re.findall("slredirect/", productUrl)) == 0:  # skip special URLs (amazon features, etc.)
                 productId = re.findall("B0[A-Z|0-9]{8}", productUrl)[0]
-                productName = products[i].xpath('.//span[@class="a-size-base-plus a-color-base a-text-normal"]')[0].text
+                try:
+                    # this should never fail, but since this script takes days to run, I'm catching all remotely possible errors
+                    productName = products[i].xpath('.//span[@class="a-size-base-plus a-color-base a-text-normal"]')[0].text
+                except:
+                    productName = None
                 try:
                     productPrice = float(products[i].xpath('.//span[@class="a-price"]')[0].xpath('.//span[@class="a-offscreen"]')[0].text[1:])
                 except:
@@ -172,29 +176,44 @@ class ReviewScraper:
 
         # Data formatted as:  " 3,334 global ratings | 1,110 global reviews "
         # Get the number of global reviews
-        reviewsCount = reviewsTree.xpath('/html/body/div[1]/div[3]/div/div[1]/div/div[1]/div[4]/div/span')[0].text.strip()
-        totalReviews = int("".join(re.findall("[0-9]+", re.sub(".*\| ", "", reviewsCount))))
-        REVIEWS_PER_PAGE = 10
-        totalPages = totalReviews // REVIEWS_PER_PAGE
+        try:
+            reviewsCount = reviewsTree.xpath('/html/body/div[1]/div[3]/div/div[1]/div/div[1]/div[4]/div/span')[0].text.strip()
+            totalReviews = int("".join(re.findall("[0-9]+", re.sub(".*\| ", "", reviewsCount))))
+        except:
+            totalReviews = 0
+        if totalReviews == 0:
+            return
+        else:
+            REVIEWS_PER_PAGE = 10
+            totalPages = totalReviews // REVIEWS_PER_PAGE
 
         # get the ratings of the product
-        scoreRaw = reviewsTree.xpath('/html/body/div[1]/div[2]/div[1]/div/div[1]/div[1]/div/div[1]/div[2]/div/div/div[2]/div/span')[0].text.strip()
-        self.__products[product]["rating"] = re.findall("[0-9]+.?[0-9]? ", scoreRaw)[0]
+        try:
+            scoreRaw = reviewsTree.xpath('/html/body/div[1]/div[2]/div[1]/div/div[1]/div[1]/div/div[1]/div[2]/div/div/div[2]/div/span')[0].text.strip()
+            self.__products[product]["rating"] = re.findall("[0-9]+.?[0-9]? ", scoreRaw)[0]
+        except:
+            self.__products[product]["rating"] = None
 
         # get page 1 of reviews
-        reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
-        for review in reviews:
-            self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+        try:
+            reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
+            for review in reviews:
+                self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+        except:
+            return
 
         # get the rest of the reviews for this product
         for page in range(1, totalPages):
             if n != -1 and page > n:
                 return
             else:
-                reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
-                reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
-                for review in reviews:
-                    self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+                try:
+                    reviewsTree = self.__openProductReviews(self.__products[product]["url"], product, page+1)
+                    reviews = reviewsTree.xpath('.//div[@class="a-section review aok-relative"]')
+                    for review in reviews:
+                        self.__products[product]["reviews"].append(self.__extractReviewInfo(review))
+                except:
+                    return
 
 
     def __extractReviewInfo(self, reviewDiv):
@@ -203,9 +222,18 @@ class ReviewScraper:
         :param reviewDiv:  an HTML div containing the review
         :return:           a dict with the extracted data
         """
-        user = reviewDiv.xpath('.//span[@class="a-profile-name"]')[0].text
-        rating = float(re.sub(" out of .*", "", reviewDiv.xpath('.//i[@data-hook="review-star-rating"]')[0].xpath('.//span[@class="a-icon-alt"]')[0].text))
-        text = reviewDiv.xpath('.//span[@class="a-size-base review-text review-text-content"]/span')[0].text.strip()
+        try:
+            user = reviewDiv.xpath('.//span[@class="a-profile-name"]')[0].text
+        except:
+            user = None
+        try:
+            rating = float(re.sub(" out of .*", "", reviewDiv.xpath('.//i[@data-hook="review-star-rating"]')[0].xpath('.//span[@class="a-icon-alt"]')[0].text))
+        except:
+            rating = None
+        try:
+            text = reviewDiv.xpath('.//span[@class="a-size-base review-text review-text-content"]/span')[0].text.strip()
+        except:
+            text = None
 
         print("---------")
         print("USER: " + str(user))
